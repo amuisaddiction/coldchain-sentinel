@@ -1,9 +1,43 @@
-"""Database connectivity, connection pooling, and session lifecycle."""
+"""Database connectivity, connection pooling, custom types, and session lifecycle."""
 
+from datetime import datetime, timezone
 from typing import Generator
-from sqlalchemy import create_engine, event
+import sqlalchemy as sa
+from sqlalchemy import create_engine, event, types
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from app.core.config import settings
+
+
+class UTCDateTime(types.TypeDecorator):
+    """
+    Guarantees that all datetimes written to the database are stored in UTC,
+    and all datetimes retrieved from the database (including SQLite) are timezone-aware UTC.
+    """
+    impl = types.DateTime
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if not isinstance(value, datetime):
+            raise TypeError("Expected datetime object")
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
+        return value.astimezone(timezone.utc)
+
+
+def PortableJSON():
+    """Returns JSONB on PostgreSQL and generic JSON on SQLite."""
+    return sa.JSON().with_variant(JSONB, "postgresql")
+
 
 # Engine configuration with dialect-specific options
 connect_args = {}
