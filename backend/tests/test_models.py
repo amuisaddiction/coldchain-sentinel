@@ -387,3 +387,222 @@ def test_payment_and_decision_check_constraints(db_session):
     with pytest.raises(IntegrityError):
         db_session.commit()
     db_session.rollback()
+
+
+@pytest.fixture
+def valid_shipment_context(db_session):
+    """Provides a valid Organization, User, ProductProfile, Shipment, and EvidenceFile for constraint tests."""
+    org = Organization(name="Constraint Org", slug="constraint-org")
+    db_session.add(org)
+    db_session.commit()
+
+    user = User(
+        organization_id=org.id,
+        email="constraint.user@org.com",
+        hashed_password="pw",
+        full_name="Test Operator",
+        role=UserRole.OPERATOR,
+    )
+    profile = ProductProfile(
+        organization_id=org.id,
+        name="Spec-A",
+        version=1,
+        min_temperature_celsius=Decimal("2.00"),
+        max_temperature_celsius=Decimal("8.00"),
+    )
+    db_session.add_all([user, profile])
+    db_session.commit()
+
+    shipment = Shipment(
+        organization_id=org.id,
+        product_profile_id=profile.id,
+        created_by=user.id,
+        tracking_number="SHP-CHK-001",
+        origin="LocA",
+        destination="LocB",
+        rule_profile_version=1,
+        rule_min_temperature_celsius=Decimal("2.00"),
+        rule_max_temperature_celsius=Decimal("8.00"),
+        rule_max_excursion_duration_seconds=0,
+        rule_expected_sampling_interval_seconds=60,
+        rule_max_sampling_gap_seconds=120,
+        rule_source_reference="Ref",
+        rule_snapshot_json={},
+    )
+    db_session.add(shipment)
+    db_session.commit()
+
+    evidence = EvidenceFile(
+        shipment_id=shipment.id,
+        organization_id=org.id,
+        file_type=EvidenceType.LOGGER_CSV,
+        original_filename="logger.csv",
+        storage_path="path/logger.csv",
+        file_size_bytes=1024,
+        sha256_hash="hash_valid_123",
+        uploaded_by=user.id,
+    )
+    db_session.add(evidence)
+    db_session.commit()
+
+    return {
+        "org": org,
+        "user": user,
+        "profile": profile,
+        "shipment": shipment,
+        "evidence": evidence,
+    }
+
+
+def test_evidence_file_size_check_constraint(db_session, valid_shipment_context):
+    """1. EvidenceFile: reject file_size_bytes <= 0."""
+    ctx = valid_shipment_context
+
+    # Test file_size_bytes = 0
+    bad_zero = EvidenceFile(
+        shipment_id=ctx["shipment"].id,
+        organization_id=ctx["org"].id,
+        file_type=EvidenceType.LOGGER_CSV,
+        original_filename="zero.csv",
+        storage_path="path/zero.csv",
+        file_size_bytes=0,
+        sha256_hash="hash_zero",
+        uploaded_by=ctx["user"].id,
+    )
+    db_session.add(bad_zero)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Test file_size_bytes < 0
+    bad_negative = EvidenceFile(
+        shipment_id=ctx["shipment"].id,
+        organization_id=ctx["org"].id,
+        file_type=EvidenceType.LOGGER_CSV,
+        original_filename="neg.csv",
+        storage_path="path/neg.csv",
+        file_size_bytes=-500,
+        sha256_hash="hash_neg",
+        uploaded_by=ctx["user"].id,
+    )
+    db_session.add(bad_negative)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
+def test_temperature_reading_row_number_check_constraint(db_session, valid_shipment_context):
+    """2. TemperatureReading: reject row_number <= 0."""
+    ctx = valid_shipment_context
+
+    # Test row_number = 0
+    bad_zero_row = TemperatureReading(
+        shipment_id=ctx["shipment"].id,
+        evidence_file_id=ctx["evidence"].id,
+        row_number=0,
+        sensor_id="PROBE-01",
+        recorded_at=datetime.now(timezone.utc),
+        temperature_celsius=Decimal("4.00"),
+    )
+    db_session.add(bad_zero_row)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # Test row_number < 0
+    bad_neg_row = TemperatureReading(
+        shipment_id=ctx["shipment"].id,
+        evidence_file_id=ctx["evidence"].id,
+        row_number=-1,
+        sensor_id="PROBE-01",
+        recorded_at=datetime.now(timezone.utc),
+        temperature_celsius=Decimal("4.00"),
+    )
+    db_session.add(bad_neg_row)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+
+def test_temperature_reading_sequence_number_check_constraint(db_session, valid_shipment_context):
+    """3. TemperatureReading: reject sequence_number < 0 when sequence_number is provided."""
+    ctx = valid_shipment_context
+
+    # sequence_number < 0 must be rejected
+    bad_seq = TemperatureReading(
+        shipment_id=ctx["shipment"].id,
+        evidence_file_id=ctx["evidence"].id,
+        row_number=10,
+        sensor_id="PROBE-01",
+        recorded_at=datetime.now(timezone.utc),
+        temperature_celsius=Decimal("4.00"),
+        sequence_number=-1,
+    )
+    db_session.add(bad_seq)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # sequence_number = 0 and sequence_number = None must succeed
+    valid_zero_seq = TemperatureReading(
+        shipment_id=ctx["shipment"].id,
+        evidence_file_id=ctx["evidence"].id,
+        row_number=11,
+        sensor_id="PROBE-01",
+        recorded_at=datetime.now(timezone.utc),
+        temperature_celsius=Decimal("4.00"),
+        sequence_number=0,
+    )
+    valid_null_seq = TemperatureReading(
+        shipment_id=ctx["shipment"].id,
+        evidence_file_id=ctx["evidence"].id,
+        row_number=12,
+        sensor_id="PROBE-01",
+        recorded_at=datetime.now(timezone.utc),
+        temperature_celsius=Decimal("4.00"),
+        sequence_number=None,
+    )
+    db_session.add_all([valid_zero_seq, valid_null_seq])
+    db_session.commit()
+    assert valid_zero_seq.id is not None
+    assert valid_null_seq.id is not None
+
+
+def test_verification_decision_total_excursion_check_constraint(db_session, valid_shipment_context):
+    """4. VerificationDecision: reject total_excursion_seconds < 0."""
+    ctx = valid_shipment_context
+
+    # total_excursion_seconds < 0 must be rejected
+    bad_excursion = VerificationDecision(
+        shipment_id=ctx["shipment"].id,
+        organization_id=ctx["org"].id,
+        decision=DecisionType.FAILED,
+        confidence_score=Decimal("0.900"),
+        evidence_hash_snapshot="hash_exc_test",
+        temperature_rule_passed=False,
+        custody_chain_passed=True,
+        sampling_frequency_passed=True,
+        total_excursion_seconds=-30,
+        reasoning_summary="Negative excursion seconds",
+    )
+    db_session.add(bad_excursion)
+    with pytest.raises(IntegrityError):
+        db_session.commit()
+    db_session.rollback()
+
+    # total_excursion_seconds = 0 must succeed
+    valid_excursion = VerificationDecision(
+        shipment_id=ctx["shipment"].id,
+        organization_id=ctx["org"].id,
+        decision=DecisionType.PASSED,
+        confidence_score=Decimal("0.950"),
+        evidence_hash_snapshot="hash_exc_test_2",
+        temperature_rule_passed=True,
+        custody_chain_passed=True,
+        sampling_frequency_passed=True,
+        total_excursion_seconds=0,
+        reasoning_summary="Zero excursion seconds compliant",
+    )
+    db_session.add(valid_excursion)
+    db_session.commit()
+    assert valid_excursion.id is not None
