@@ -32,6 +32,7 @@ class User(Base):
         default=UserRole.OPERATOR,
     )
     is_active = sa.Column(sa.Boolean, nullable=False, default=True)
+    token_version = sa.Column(sa.Integer, nullable=False, default=1)
     created_at = sa.Column(
         UTCDateTime,
         nullable=False,

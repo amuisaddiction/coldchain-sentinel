@@ -7,6 +7,18 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.database import get_db
+from app.api.v1.auth import router as auth_router
+from app.api.v1.users import router as users_router
+from app.api.v1.organizations import router as organizations_router
+from app.api.v1.product_profiles import router as product_profiles_router
+from app.api.v1.shipments import router as shipments_router
+from app.api.v1.temperature import router as temperature_router
+from app.api.v1.evidence import router as evidence_router
+from app.api.v1.custody import router as custody_router
+from app.api.v1.payments import router as payments_router
+from app.api.v1.investigations import router as investigations_router
+from app.api.v1.carrier import router as carrier_router
+from app.api.v1.challenge import router as challenge_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -25,6 +37,20 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Register v1 Routers
+app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
+app.include_router(users_router, prefix=settings.API_V1_PREFIX)
+app.include_router(organizations_router, prefix=settings.API_V1_PREFIX)
+app.include_router(product_profiles_router, prefix=settings.API_V1_PREFIX)
+app.include_router(shipments_router, prefix=settings.API_V1_PREFIX)
+app.include_router(temperature_router, prefix=settings.API_V1_PREFIX)
+app.include_router(evidence_router, prefix=settings.API_V1_PREFIX)
+app.include_router(custody_router, prefix=settings.API_V1_PREFIX)
+app.include_router(payments_router, prefix=settings.API_V1_PREFIX)
+app.include_router(investigations_router, prefix=settings.API_V1_PREFIX)
+app.include_router(carrier_router, prefix=settings.API_V1_PREFIX)
+app.include_router(challenge_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", tags=["Root"])

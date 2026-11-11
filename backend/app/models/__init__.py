@@ -14,6 +14,7 @@ from app.models.enums import (
     IdempotencyStatus,
     InvestigationStatus,
     InvestigationPriority,
+    OutboxStatus,
 )
 from app.models.exceptions import (
     ImmutableProfileError,
@@ -30,6 +31,7 @@ from app.models.decision import VerificationDecision
 from app.models.payment import Payment, PaymentIdempotencyRecord
 from app.models.investigation import Investigation
 from app.models.audit import AuditEvent
+from app.models.outbox import OutboxEvent
 
 __all__ = [
     # Enums
@@ -46,10 +48,11 @@ __all__ = [
     "IdempotencyStatus",
     "InvestigationStatus",
     "InvestigationPriority",
+    "OutboxStatus",
     # Exceptions
     "ImmutableProfileError",
     "ImmutableSnapshotError",
-    # 12 Models
+    # 13 Models
     "Organization",
     "User",
     "ProductProfile",
@@ -62,4 +65,5 @@ __all__ = [
     "PaymentIdempotencyRecord",
     "Investigation",
     "AuditEvent",
+    "OutboxEvent",
 ]

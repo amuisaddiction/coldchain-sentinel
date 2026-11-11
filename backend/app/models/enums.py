@@ -11,6 +11,7 @@ class OrganizationStatus(str, enum.Enum):
 
 class UserRole(str, enum.Enum):
     ADMIN = "ADMIN"
+    MANAGER = "MANAGER"
     QUALITY_ASSURANCE = "QUALITY_ASSURANCE"
     OPERATOR = "OPERATOR"
     AUDITOR = "AUDITOR"
@@ -93,3 +94,11 @@ class InvestigationPriority(str, enum.Enum):
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
+
+
+class OutboxStatus(str, enum.Enum):
+    PENDING = "PENDING"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    DEAD_LETTER = "DEAD_LETTER"

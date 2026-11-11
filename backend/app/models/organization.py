@@ -24,6 +24,7 @@ class Organization(Base):
         nullable=False,
         default=OrganizationStatus.ACTIVE,
     )
+    auth_version = sa.Column(sa.Integer, nullable=False, default=1)
     created_at = sa.Column(
         UTCDateTime,
         nullable=False,

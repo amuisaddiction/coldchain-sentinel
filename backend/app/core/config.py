@@ -17,6 +17,10 @@ class Settings(BaseSettings):
         default="coldchain-sentinel-insecure-dev-key-change-in-production-123456",
         description="Cryptographic secret key for signing tokens"
     )
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    TRUSTED_PROXY_CIDRS: List[str] = ["127.0.0.1/32", "::1/128"]
 
     # CORS
     CORS_ORIGINS: List[str] = [

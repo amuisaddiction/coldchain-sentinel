@@ -44,11 +44,10 @@ class LocalStorageBackend:
         (self.base_path / "evidence").mkdir(parents=True, exist_ok=True)
         (self.base_path / "reports").mkdir(parents=True, exist_ok=True)
 
-    async def save_file(self, content: bytes, original_filename: str, subfolder: str = "evidence") -> Tuple[str, str, int]:
+    def save_file_sync(self, content: bytes, original_filename: str, subfolder: str = "evidence") -> Tuple[str, str, int]:
         sha256_hash = compute_sha256(content)
         size_bytes = len(content)
 
-        # Generate a secure unique storage key avoiding directory traversal
         extension = Path(original_filename).suffix.lower()
         file_uuid = uuid.uuid4().hex
         storage_key = f"{subfolder}/{file_uuid}{extension}"
@@ -60,15 +59,24 @@ class LocalStorageBackend:
 
         return storage_key, sha256_hash, size_bytes
 
-    async def get_file(self, storage_key: str) -> bytes:
+    def get_file_sync(self, storage_key: str) -> bytes:
         target_path = self.base_path / storage_key
         if not target_path.exists():
             raise FileNotFoundError(f"Storage artifact not found: {storage_key}")
         with open(target_path, "rb") as f:
             return f.read()
 
-    async def exists(self, storage_key: str) -> bool:
+    def exists_sync(self, storage_key: str) -> bool:
         return (self.base_path / storage_key).exists()
+
+    async def save_file(self, content: bytes, original_filename: str, subfolder: str = "evidence") -> Tuple[str, str, int]:
+        return self.save_file_sync(content, original_filename, subfolder)
+
+    async def get_file(self, storage_key: str) -> bytes:
+        return self.get_file_sync(storage_key)
+
+    async def exists(self, storage_key: str) -> bool:
+        return self.exists_sync(storage_key)
 
 
 class S3StorageBackend:
