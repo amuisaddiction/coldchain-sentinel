@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select
 from fastapi import HTTPException, status
 
-from app.core.storage import compute_sha256, LocalStorageBackend
+from app.core.storage import compute_sha256, get_storage
 from app.core.config import settings
 from app.models.evidence import EvidenceFile
 from app.models.shipment import Shipment
@@ -18,11 +18,6 @@ from app.models.enums import EvidenceType, EvidenceIntegrityStatus
 from app.schemas.evidence import EvidenceVerificationResponse
 from app.services import temperature_service
 from app.services.audit_service import log_audit_event
-
-
-def get_storage():
-    """Retrieve configured storage backend."""
-    return LocalStorageBackend(base_path=settings.STORAGE_LOCAL_PATH)
 
 
 def list_evidence_for_shipment(db: Session, org_id: str, shipment_id: str) -> List[EvidenceFile]:

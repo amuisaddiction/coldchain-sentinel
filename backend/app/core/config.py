@@ -51,8 +51,13 @@ class Settings(BaseSettings):
         return v
 
     # Evidence File Storage
-    STORAGE_BACKEND: Literal["local", "s3"] = "local"
+    STORAGE_BACKEND: Literal["local", "s3", "supabase"] = "local"
     STORAGE_LOCAL_PATH: str = "backend/storage"
+
+    # Supabase Storage Settings
+    SUPABASE_URL: str = ""
+    SUPABASE_KEY: str = ""
+    SUPABASE_STORAGE_BUCKET: str = "evidence"
 
     # S3 / Cloud Storage Settings
     S3_BUCKET_NAME: str = "coldchain-sentinel-evidence"
