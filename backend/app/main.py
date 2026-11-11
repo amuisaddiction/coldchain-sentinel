@@ -64,6 +64,7 @@ def root():
     }
 
 
+@app.get("/health", tags=["System"], include_in_schema=False)
 @app.get(f"{settings.API_V1_PREFIX}/health", tags=["System"])
 def health_check(db: Session = Depends(get_db)):
     """Comprehensive system health and runtime environment verification."""
