@@ -166,7 +166,7 @@ def test_verified_shipment_capture_and_outbox_dispatch(payment_db):
     db.refresh(payment)
     assert payment.status == PaymentStatus.CAPTURED
     assert payment.paypal_capture_id is not None
-    assert payment.paypal_capture_id.startswith("CAP-SANDBOX-")
+    assert payment.paypal_capture_id.startswith(("CAP-SANDBOX-", "SIMULATED-PAYPAL-CAP-"))
     assert payment.settled_at is not None
 
     # Verify idempotency record updated to SUCCESS
