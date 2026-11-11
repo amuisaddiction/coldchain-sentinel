@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ColdChain Sentinel | Pharmaceutical Evidence Verification & Payment Assurance',
-  description: 'Evidence-verified shipment acceptance and PayPal payment assurance for temperature-sensitive cold chain logistics.',
+  title: 'ColdChain Sentinel | Logistics Command Center',
+  description: 'Evidence-verified pharmaceutical acceptance, real-time temperature tracking, and automated payment assurance.',
 };
 
 export default function RootLayout({
@@ -13,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-obsidian-900 text-obsidian-100 antialiased selection:bg-obsidian-750 selection:text-white">
+      <body className="bg-canvas-950 text-slate-100 antialiased selection:bg-cyan-500/20 selection:text-cyan-300">
         {children}
       </body>
     </html>
