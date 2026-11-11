@@ -24,10 +24,12 @@ import {
   AlertTriangle,
   User,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 
 export type NavigationTab =
   | 'overview'
+  | 'settlement'
   | 'tracking'
   | 'shipments'
   | 'temperature'
@@ -64,6 +66,7 @@ export function Shell({
 
   const navigationItems = [
     { id: 'overview' as NavigationTab, label: 'Overview', icon: LayoutDashboard },
+    { id: 'settlement' as NavigationTab, label: 'AI Settlement', icon: Sparkles, badge: 'AI CORE' },
     { id: 'tracking' as NavigationTab, label: 'Live Tracking', icon: Navigation, badge: 'HERO' },
     { id: 'shipments' as NavigationTab, label: 'Shipments', icon: Package },
     { id: 'temperature' as NavigationTab, label: 'Temperature Monitor', icon: Thermometer },
@@ -83,6 +86,11 @@ export function Shell({
         return {
           title: 'Fleet Operations Overview',
           desc: 'High-level logistics intelligence, compliance posture, and real-time shipment health.',
+        };
+      case 'settlement':
+        return {
+          title: 'ColdChain AI Settlement Intelligence',
+          desc: 'Autonomous contract understanding, multi-factor investigation, and human-approved PayPal execution.',
         };
       case 'tracking':
         return {

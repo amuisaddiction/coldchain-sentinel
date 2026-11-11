@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shell, NavigationTab } from '../components/Shell';
 import { OverviewView } from '../components/OverviewView';
+import { SettlementIntelligenceView } from '../components/SettlementIntelligenceView';
 import { LiveTrackingView } from '../components/LiveTrackingView';
 import { ShipmentsView } from '../components/ShipmentsView';
 import { TemperatureView } from '../components/TemperatureView';
@@ -67,6 +68,8 @@ export default function ColdChainSentinelApp() {
       setCurrentTab('tracking');
     } else if (tab === 'telemetry') {
       setCurrentTab('temperature');
+    } else if (tab === 'ai-settlement' || tab === 'ai') {
+      setCurrentTab('settlement');
     } else {
       setCurrentTab(tab as NavigationTab);
     }
@@ -98,6 +101,14 @@ export default function ColdChainSentinelApp() {
     >
       {currentTab === 'overview' && (
         <OverviewView
+          shipments={shipments}
+          onSelectShipment={handleSelectShipment}
+          onNavigateTab={handleNavigateTab}
+        />
+      )}
+
+      {currentTab === 'settlement' && (
+        <SettlementIntelligenceView
           shipments={shipments}
           onSelectShipment={handleSelectShipment}
           onNavigateTab={handleNavigateTab}

@@ -184,6 +184,39 @@ class ApiClient {
     return this.request<any[]>('/investigations/');
   }
 
+  // AI Settlement Intelligence
+  async getSampleContracts() {
+    return this.request<any[]>('/settlement/contracts/samples');
+  }
+
+  async extractContract(payload: { contract_text?: string; sample_id?: string }) {
+    return this.request<any>('/settlement/contracts/extract', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async runSettlementInvestigation(shipmentIdentifier: string, contractId?: string) {
+    const query = contractId ? `?contract_id=${encodeURIComponent(contractId)}` : '';
+    return this.request<any>(`/settlement/investigate/${encodeURIComponent(shipmentIdentifier)}${query}`, {
+      method: 'POST',
+    });
+  }
+
+  async approveSettlement(payload: {
+    investigation_id: string;
+    shipment_id: string;
+    approved: boolean;
+    approved_amount: number;
+    reviewer_notes: string;
+    reviewer_id?: string;
+  }) {
+    return this.request<any>('/settlement/approve', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
   async getInvestigationReport(id: string) {
     return this.request<any>(`/investigations/${id}/report`);
   }

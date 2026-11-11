@@ -54,7 +54,7 @@ class PayPalClient:
             else:
                 seed = f"{authorization_id}:{idempotency_key}".encode()
                 short_hash = hashlib.sha256(seed).hexdigest()[:12].upper()
-                capture_id = f"CAP-SANDBOX-{short_hash}"
+                capture_id = f"SIMULATED-PAYPAL-CAP-{short_hash}"
                 self._mock_captures[idempotency_key] = capture_id
 
             return {

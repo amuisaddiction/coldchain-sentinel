@@ -19,6 +19,7 @@ from app.api.v1.payments import router as payments_router
 from app.api.v1.investigations import router as investigations_router
 from app.api.v1.carrier import router as carrier_router
 from app.api.v1.challenge import router as challenge_router
+from app.api.v1.settlement import router as settlement_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -51,6 +52,7 @@ app.include_router(payments_router, prefix=settings.API_V1_PREFIX)
 app.include_router(investigations_router, prefix=settings.API_V1_PREFIX)
 app.include_router(carrier_router, prefix=settings.API_V1_PREFIX)
 app.include_router(challenge_router, prefix=settings.API_V1_PREFIX)
+app.include_router(settlement_router, prefix=settings.API_V1_PREFIX)
 
 
 @app.get("/", tags=["Root"])
