@@ -32,7 +32,7 @@ async def test_health_check_endpoint():
         assert data["status"] == "healthy"
         assert data["database_connected"] is True
         assert "python_runtime" in data
-        assert data["storage_backend"] in ("local", "s3")
+        assert data["storage_backend"] in ("local", "s3", "supabase")
         assert data["paypal_mode"] in ("SANDBOX", "DEMO")
 
 
