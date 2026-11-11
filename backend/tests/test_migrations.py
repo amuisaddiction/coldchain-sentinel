@@ -114,3 +114,104 @@ def test_postgresql_ddl_compilation():
     payments_ddl = compiled_ddl["payments"]
     assert "amount_minor BIGINT" in payments_ddl or "BIGINT" in payments_ddl
     assert "ck_payment_amount_positive" in payments_ddl
+
+
+def test_postgresql_migration_enum_idempotency():
+    """
+    Simulates Alembic 001 and 002 upgrade & downgrade on PostgreSQL to verify:
+    1. Idempotent DO $$ blocks with IF NOT EXISTS checks for all 13 initial PG enums.
+    2. Zero duplicate CREATE TYPE statements emitted by create_table.
+    3. Idempotent outbox_status enum creation in 002.
+    4. Clean downgrade with DROP TYPE IF EXISTS ... CASCADE.
+    """
+    import importlib.util
+    import sqlalchemy as sa
+    from sqlalchemy.dialects import postgresql
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from alembic import op
+
+    backend_dir = Path(__file__).resolve().parent.parent
+    ver_dir = backend_dir / "alembic" / "versions"
+
+    spec_001 = importlib.util.spec_from_file_location("mig_001", ver_dir / "001_initial_schema.py")
+    mig_001 = importlib.util.module_from_spec(spec_001)
+    spec_001.loader.exec_module(mig_001)
+
+    spec_002 = importlib.util.spec_from_file_location("mig_002", ver_dir / "002_phase3_auth_rbac.py")
+    mig_002 = importlib.util.module_from_spec(spec_002)
+    spec_002.loader.exec_module(mig_002)
+
+    recorded_statements = []
+
+    def mock_executor(sql, *args, **kwargs):
+        if hasattr(sql, "compile"):
+            stmt_str = str(sql.compile(dialect=postgresql.dialect())).strip()
+        else:
+            stmt_str = str(sql).strip()
+        recorded_statements.append(stmt_str)
+
+    engine = sa.create_mock_engine("postgresql://", mock_executor)
+    ctx = MigrationContext.configure(engine)
+
+    original_ctx = getattr(op, "_proxy", None)
+    op._proxy = Operations(ctx)
+
+    try:
+        # 1. Run 001 upgrade
+        mig_001.upgrade()
+
+        pg_enums = mig_001.PG_ENUMS
+        for enum_name in pg_enums:
+            # Must have DO $$ block with IF NOT EXISTS check
+            matching_do_blocks = [
+                s for s in recorded_statements
+                if f"IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name}')" in s
+            ]
+            assert len(matching_do_blocks) == 1, f"Missing or duplicate DO block for enum {enum_name}"
+
+            # Must NOT have raw CREATE TYPE {enum_name} emitted outside the DO block
+            raw_creates = [
+                s for s in recorded_statements
+                if s.startswith(f"CREATE TYPE {enum_name}") or s.startswith(f"CREATE TYPE \"{enum_name}\"")
+            ]
+            assert len(raw_creates) == 0, f"Duplicate un-guarded CREATE TYPE emitted for {enum_name}: {raw_creates}"
+
+        # 2. Run 002 upgrade
+        mig_002.upgrade()
+
+        outbox_do = [
+            s for s in recorded_statements
+            if "IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'outbox_status')" in s
+        ]
+        assert len(outbox_do) == 1, "Missing DO block for outbox_status"
+
+        raw_outbox_creates = [
+            s for s in recorded_statements
+            if s.startswith("CREATE TYPE outbox_status") or s.startswith("CREATE TYPE \"outbox_status\"")
+        ]
+        assert len(raw_outbox_creates) == 0, f"Duplicate CREATE TYPE for outbox_status: {raw_outbox_creates}"
+
+        # 3. Test downgrade sequence
+        downgrade_statements = []
+        def mock_down_executor(sql, *args, **kwargs):
+            if hasattr(sql, "compile"):
+                downgrade_statements.append(str(sql.compile(dialect=postgresql.dialect())).strip())
+            else:
+                downgrade_statements.append(str(sql).strip())
+
+        engine_down = sa.create_mock_engine("postgresql://", mock_down_executor)
+        op._proxy = Operations(MigrationContext.configure(engine_down))
+
+        mig_002.downgrade()
+        assert any("DROP TYPE IF EXISTS outbox_status CASCADE" in s for s in downgrade_statements)
+
+        mig_001.downgrade()
+        for enum_name in pg_enums:
+            assert any(f"DROP TYPE IF EXISTS {enum_name} CASCADE" in s for s in downgrade_statements), (
+                f"Missing DROP TYPE for {enum_name} in downgrade"
+            )
+
+    finally:
+        op._proxy = original_ctx
+

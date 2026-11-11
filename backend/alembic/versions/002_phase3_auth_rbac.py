@@ -30,7 +30,8 @@ def upgrade() -> None:
             WHERE trim(email, ' ' || char(9) || char(10) || char(13)) GLOB '*[^!-~]*'
                OR instr(email, char(0)) > 0
         """)
-        bad_records = bind.execute(preflight_query).fetchall()
+        res_sqlite = bind.execute(preflight_query)
+        bad_records = res_sqlite.fetchall() if (res_sqlite is not None and hasattr(res_sqlite, "fetchall")) else []
         if bad_records:
             raise ValueError(
                 f"SQLite Preflight Migration Error: {len(bad_records)} user record(s) contain "
@@ -42,7 +43,8 @@ def upgrade() -> None:
             SELECT id, email FROM users
             WHERE email ~ '[^ -~]'
         """)
-        bad_records_pg = bind.execute(preflight_pg).fetchall()
+        res_pg = bind.execute(preflight_pg)
+        bad_records_pg = res_pg.fetchall() if (res_pg is not None and hasattr(res_pg, "fetchall")) else []
         if bad_records_pg:
             raise ValueError(
                 f"PostgreSQL Preflight Migration Error: {len(bad_records_pg)} user record(s) contain "
@@ -53,6 +55,14 @@ def upgrade() -> None:
     if dialect_name == "postgresql":
         # Add MANAGER to user_role enum if not already present
         op.execute("ALTER TYPE user_role ADD VALUE IF NOT EXISTS 'MANAGER'")
+        op.execute(sa.text("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'outbox_status') THEN
+                    CREATE TYPE outbox_status AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', 'DEAD_LETTER');
+                END IF;
+            END $$;
+        """))
 
     # 3. Create email backup table to guarantee reversibility of lowercase/trim normalization
     op.create_table(
@@ -86,7 +96,11 @@ def upgrade() -> None:
     """)
 
     # 7. Create outbox_events table for reliable event dispatching
-    outbox_status_enum = sa.Enum("PENDING", "PROCESSING", "COMPLETED", "FAILED", "DEAD_LETTER", name="outbox_status")
+    outbox_status_enum = sa.Enum(
+        "PENDING", "PROCESSING", "COMPLETED", "FAILED", "DEAD_LETTER",
+        name="outbox_status",
+        create_type=False,
+    )
     op.create_table(
         "outbox_events",
         sa.Column("id", sa.String(36), primary_key=True, nullable=False),
@@ -125,7 +139,7 @@ def downgrade() -> None:
     op.drop_table("outbox_events")
 
     if dialect_name == "postgresql":
-        op.execute("DROP TYPE IF EXISTS outbox_status")
+        op.execute(sa.text("DROP TYPE IF EXISTS outbox_status CASCADE"))
 
     # 2. Restore original email values from backup table
     op.execute("""

@@ -38,11 +38,18 @@ def upgrade() -> None:
     bind = op.get_bind()
     is_postgres = bind.dialect.name == "postgresql"
 
-    # In PostgreSQL, create native ENUM types before table definitions
+    # In PostgreSQL, create native ENUM types before table definitions idempotently
     if is_postgres:
         for enum_name, values in PG_ENUMS.items():
-            pg_enum = postgresql.ENUM(*values, name=enum_name, create_type=False)
-            pg_enum.create(bind, checkfirst=True)
+            formatted_vals = ", ".join(f"'{v}'" for v in values)
+            op.execute(sa.text(f"""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '{enum_name}') THEN
+                        CREATE TYPE {enum_name} AS ENUM ({formatted_vals});
+                    END IF;
+                END $$;
+            """))
 
     # Portable JSON type helper
     json_type = sa.JSON().with_variant(postgresql.JSONB, "postgresql")
@@ -55,7 +62,7 @@ def upgrade() -> None:
         sa.Column("slug", sa.String(100), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("ACTIVE", "SUSPENDED", "INACTIVE", name="organization_status"),
+            sa.Enum("ACTIVE", "SUSPENDED", "INACTIVE", name="organization_status", create_type=False),
             nullable=False,
             server_default="ACTIVE",
         ),
@@ -75,7 +82,7 @@ def upgrade() -> None:
         sa.Column("full_name", sa.String(255), nullable=False),
         sa.Column(
             "role",
-            sa.Enum("ADMIN", "QUALITY_ASSURANCE", "OPERATOR", "AUDITOR", "VIEWER", name="user_role"),
+            sa.Enum("ADMIN", "QUALITY_ASSURANCE", "OPERATOR", "AUDITOR", "VIEWER", name="user_role", create_type=False),
             nullable=False,
             server_default="OPERATOR",
         ),
@@ -124,7 +131,7 @@ def upgrade() -> None:
         sa.Column("tracking_number", sa.String(100), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("CREATED", "IN_TRANSIT", "DELIVERED", "VERIFIED", "FAILED", "CANCELLED", name="shipment_status"),
+            sa.Enum("CREATED", "IN_TRANSIT", "DELIVERED", "VERIFIED", "FAILED", "CANCELLED", name="shipment_status", create_type=False),
             nullable=False,
             server_default="CREATED",
         ),
@@ -175,7 +182,7 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False),
         sa.Column(
             "file_type",
-            sa.Enum("LOGGER_CSV", "CALIBRATION_CERTIFICATE", "DELIVERY_MANIFEST", "INSPECTION_PHOTO", name="evidence_type"),
+            sa.Enum("LOGGER_CSV", "CALIBRATION_CERTIFICATE", "DELIVERY_MANIFEST", "INSPECTION_PHOTO", name="evidence_type", create_type=False),
             nullable=False,
         ),
         sa.Column("original_filename", sa.String(255), nullable=False),
@@ -184,7 +191,7 @@ def upgrade() -> None:
         sa.Column("sha256_hash", sa.String(64), nullable=False),
         sa.Column(
             "integrity_status",
-            sa.Enum("VERIFIED", "HASH_MISMATCH", "CORRUPTED", "PARSING_FAILED", name="evidence_integrity_status"),
+            sa.Enum("VERIFIED", "HASH_MISMATCH", "CORRUPTED", "PARSING_FAILED", name="evidence_integrity_status", create_type=False),
             nullable=False,
             server_default="VERIFIED",
         ),
@@ -224,7 +231,7 @@ def upgrade() -> None:
         sa.Column("temperature_celsius", sa.Numeric(precision=5, scale=2), nullable=False),
         sa.Column(
             "severity",
-            sa.Enum("NORMAL", "WARNING", "CRITICAL_EXCURSION", name="temperature_severity"),
+            sa.Enum("NORMAL", "WARNING", "CRITICAL_EXCURSION", name="temperature_severity", create_type=False),
             nullable=False,
             server_default="NORMAL",
         ),
@@ -256,7 +263,7 @@ def upgrade() -> None:
         sa.Column("actor_user_id", sa.String(36), nullable=True),
         sa.Column(
             "event_type",
-            sa.Enum("DISPATCH", "AIRPORT_TRANSFER", "CUSTOMS_CLEARANCE", "LAST_MILE_PICKUP", "DELIVERY_HANDOVER", name="custody_event_type"),
+            sa.Enum("DISPATCH", "AIRPORT_TRANSFER", "CUSTOMS_CLEARANCE", "LAST_MILE_PICKUP", "DELIVERY_HANDOVER", name="custody_event_type", create_type=False),
             nullable=False,
         ),
         sa.Column("carrier_name", sa.String(255), nullable=False),
@@ -297,7 +304,7 @@ def upgrade() -> None:
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False),
         sa.Column(
             "decision",
-            sa.Enum("PASSED", "FAILED", "MANUAL_REVIEW_REQUIRED", name="decision_type"),
+            sa.Enum("PASSED", "FAILED", "MANUAL_REVIEW_REQUIRED", name="decision_type", create_type=False),
             nullable=False,
         ),
         sa.Column("confidence_score", sa.Numeric(precision=4, scale=3), nullable=False),
@@ -345,7 +352,7 @@ def upgrade() -> None:
         sa.Column("currency_exponent", sa.Integer(), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("AUTHORIZED", "CAPTURED", "VOIDED", "HELD_FOR_REVIEW", "FAILED", name="payment_status"),
+            sa.Enum("AUTHORIZED", "CAPTURED", "VOIDED", "HELD_FOR_REVIEW", "FAILED", name="payment_status", create_type=False),
             nullable=False,
             server_default="AUTHORIZED",
         ),
@@ -378,13 +385,13 @@ def upgrade() -> None:
         "payment_idempotency_records",
         sa.Column("id", sa.String(36), primary_key=True, nullable=False),
         sa.Column("provider", sa.String(32), nullable=False, server_default="PAYPAL"),
-        sa.Column("action", sa.Enum("CAPTURE", "VOID", "REFUND", name="payment_action"), nullable=False),
+        sa.Column("action", sa.Enum("CAPTURE", "VOID", "REFUND", name="payment_action", create_type=False), nullable=False),
         sa.Column("idempotency_key", sa.String(255), nullable=False),
         sa.Column("organization_id", sa.String(36), sa.ForeignKey("organizations.id", ondelete="RESTRICT"), nullable=False),
         sa.Column("payment_id", sa.String(36), sa.ForeignKey("payments.id", ondelete="RESTRICT"), nullable=True),
         sa.Column(
             "status",
-            sa.Enum("IN_PROGRESS", "SUCCESS", "FAILED", "REQUIRES_RECONCILIATION", name="idempotency_status"),
+            sa.Enum("IN_PROGRESS", "SUCCESS", "FAILED", "REQUIRES_RECONCILIATION", name="idempotency_status", create_type=False),
             nullable=False,
             server_default="IN_PROGRESS",
         ),
@@ -408,13 +415,13 @@ def upgrade() -> None:
         sa.Column("assigned_to", sa.String(36), nullable=True),
         sa.Column(
             "status",
-            sa.Enum("OPEN", "IN_REVIEW", "RESOLVED_APPROVED", "RESOLVED_REJECTED", name="investigation_status"),
+            sa.Enum("OPEN", "IN_REVIEW", "RESOLVED_APPROVED", "RESOLVED_REJECTED", name="investigation_status", create_type=False),
             nullable=False,
             server_default="OPEN",
         ),
         sa.Column(
             "priority",
-            sa.Enum("LOW", "MEDIUM", "HIGH", "CRITICAL", name="investigation_priority"),
+            sa.Enum("LOW", "MEDIUM", "HIGH", "CRITICAL", name="investigation_priority", create_type=False),
             nullable=False,
             server_default="MEDIUM",
         ),
@@ -494,6 +501,5 @@ def downgrade() -> None:
 
     # In PostgreSQL, drop ENUM types after referencing tables are dropped
     if is_postgres:
-        for enum_name, values in reversed(list(PG_ENUMS.items())):
-            pg_enum = postgresql.ENUM(*values, name=enum_name, create_type=False)
-            pg_enum.drop(bind, checkfirst=True)
+        for enum_name in reversed(list(PG_ENUMS.keys())):
+            op.execute(sa.text(f"DROP TYPE IF EXISTS {enum_name} CASCADE"))
