@@ -26,14 +26,27 @@ class Settings(BaseSettings):
     CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "https://coldchain-sentinel.vercel.app",
+        "https://coldchain-sentinel-omega.vercel.app",
+        "https://coldchain-sentinel-paradox-d082.vercel.app",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def assemble_cors_origins(cls, v):
+        defaults = [
+            "http://localhost:3000",
+            "http://127.0.0.1:3000",
+            "https://coldchain-sentinel.vercel.app",
+            "https://coldchain-sentinel-omega.vercel.app",
+            "https://coldchain-sentinel-paradox-d082.vercel.app",
+        ]
         if isinstance(v, str) and not v.startswith("["):
-            return [i.strip() for i in v.split(",") if i.strip()]
-        elif isinstance(v, (list, str)):
+            parsed = [i.strip() for i in v.split(",") if i.strip()]
+            return list(dict.fromkeys(parsed + defaults))
+        elif isinstance(v, list):
+            return list(dict.fromkeys(v + defaults))
+        elif isinstance(v, str):
             return v
         raise ValueError(v)
 
@@ -76,6 +89,35 @@ class Settings(BaseSettings):
     # AI Integration (Google Gemini)
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-2.5-flash"
+
+    # Google OAuth 2.0 Integration
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = ""
+    FRONTEND_URL: str = "http://localhost:3000"
+
+    @property
+    def resolved_google_redirect_uri(self) -> str:
+        """Resolve OAuth redirect URI based on environment or explicit override.
+        
+        - If GOOGLE_REDIRECT_URI is provided, strictly honor it.
+        - In production (APP_ENV == 'production'), use deployed Render domain.
+        - In local development, use localhost.
+        """
+        if self.GOOGLE_REDIRECT_URI:
+            return self.GOOGLE_REDIRECT_URI
+        if self.APP_ENV == "production":
+            return "https://coldchain-sentinel-7ax3.onrender.com/api/auth/google/callback"
+        return "http://localhost:8000/api/auth/google/callback"
+
+    @property
+    def resolved_frontend_url(self) -> str:
+        """Resolve Frontend URL for OAuth redirects."""
+        if self.FRONTEND_URL and self.FRONTEND_URL != "http://localhost:3000":
+            return self.FRONTEND_URL
+        if self.APP_ENV == "production":
+            return "https://coldchain-sentinel.vercel.app"
+        return "http://localhost:3000"
 
     model_config = SettingsConfigDict(
         env_file=".env",

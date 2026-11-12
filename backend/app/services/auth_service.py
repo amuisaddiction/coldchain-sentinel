@@ -204,3 +204,103 @@ def logout(db: Session, user: User, client_ip: Optional[str] = None) -> bool:
     )
     db.commit()
     return True
+
+
+def get_or_create_google_user(
+    db: Session,
+    email: str,
+    full_name: str,
+    client_ip: Optional[str] = None,
+) -> User:
+    """Find existing user by email or provision new user under the default active organization."""
+    import uuid
+    from app.models.enums import UserRole
+
+    norm_email = email.strip().lower()
+    user = db.scalar(select(User).where(User.email == norm_email))
+    if user:
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is deactivated",
+            )
+        org = db.scalar(select(Organization).where(Organization.id == user.organization_id))
+        if not org or org.status != OrganizationStatus.ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Organization is inactive or suspended",
+            )
+        return user
+
+    # Auto-provision user under the primary active organization
+    org = db.scalar(select(Organization).where(Organization.status == OrganizationStatus.ACTIVE).order_by(Organization.created_at))
+    if not org:
+        org = Organization(
+            id=str(uuid.uuid4()),
+            name="ColdChain Logistics Alliance",
+            slug="coldchain-alliance",
+            status=OrganizationStatus.ACTIVE,
+        )
+        db.add(org)
+        db.flush()
+
+    user = User(
+        id=str(uuid.uuid4()),
+        organization_id=org.id,
+        email=norm_email,
+        hashed_password=hash_password(uuid.uuid4().hex),  # Unguessable random hash for OAuth user
+        full_name=full_name or "Google User",
+        role=UserRole.OPERATOR,
+        is_active=True,
+    )
+    db.add(user)
+    log_audit_event(
+        db=db,
+        organization_id=org.id,
+        user_id=user.id,
+        entity_type="USER",
+        entity_id=user.id,
+        action="GOOGLE_OAUTH_PROVISION",
+        ip_address=client_ip,
+    )
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def generate_tokens_for_user(db: Session, user: User, client_ip: Optional[str] = None) -> TokenResponse:
+    """Generate PyJWT access & refresh tokens for an authenticated user."""
+    org = db.scalar(select(Organization).where(Organization.id == user.organization_id))
+    auth_version = org.auth_version if org else 1
+
+    access_token = create_access_token(
+        user_id=user.id,
+        org_id=user.organization_id,
+        role=user.role.value if hasattr(user.role, "value") else str(user.role),
+        token_version=user.token_version,
+        auth_version=auth_version,
+    )
+    refresh_token = create_refresh_token(
+        user_id=user.id,
+        org_id=user.organization_id,
+        token_version=user.token_version,
+        auth_version=auth_version,
+    )
+
+    log_audit_event(
+        db=db,
+        organization_id=user.organization_id,
+        user_id=user.id,
+        entity_type="AUTH",
+        entity_id=user.id,
+        action="LOGIN_GOOGLE_SUCCESS",
+        ip_address=client_ip,
+    )
+    db.commit()
+
+    return TokenResponse(
+        access_token=access_token,
+        refresh_token=refresh_token,
+        token_type="bearer",
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )

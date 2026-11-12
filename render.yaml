@@ -26,7 +26,11 @@ services:
       - key: SUPABASE_STORAGE_BUCKET
         value: evidence
       - key: CORS_ORIGINS
-        value: https://coldchain-sentinel.vercel.app,http://localhost:3000
+        value: https://coldchain-sentinel-omega.vercel.app,https://coldchain-sentinel.vercel.app,https://coldchain-sentinel-paradox-d082.vercel.app,http://localhost:3000
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
       - key: PAYPAL_MODE
         value: SANDBOX
       - key: PAYPAL_BASE_URL

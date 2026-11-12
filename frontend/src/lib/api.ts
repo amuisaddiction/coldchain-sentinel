@@ -3,7 +3,7 @@
  * Connects frontend UI to real backend endpoints with automatic Bearer token handling.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://127.0.0.1:8000/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'https://coldchain-sentinel-7ax3.onrender.com/api';
 
 class ApiClient {
   private token: string | null = null;
@@ -61,6 +61,11 @@ class ApiClient {
   }
 
   // Authentication
+  getGoogleAuthUrl(returnUrl?: string): string {
+    const query = returnUrl ? `?return_url=${encodeURIComponent(returnUrl)}` : '';
+    return `${API_BASE}/auth/google${query}`;
+  }
+
   async login(email: string, password: string) {
     const data = await this.request<{ access_token: string; refresh_token: string }>(
       '/auth/login',

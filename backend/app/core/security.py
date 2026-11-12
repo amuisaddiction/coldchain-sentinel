@@ -227,3 +227,66 @@ def decode_and_verify_token(token: str, expected_type: str = "access") -> Dict[s
     payload["jti"] = _validate_canonical_uuid(payload.get("jti"), "jti")
 
     return payload
+
+
+def generate_oauth_state(payload_data: Optional[Dict[str, Any]] = None) -> str:
+    """Generate a tamper-proof, timestamped HMAC-SHA256 signed state token for OAuth2 CSRF prevention."""
+    import hmac
+    import hashlib
+    import base64
+    import json
+    import time
+
+    timestamp = int(time.time())
+    nonce = uuid.uuid4().hex[:12]
+    content = f"{timestamp}:{nonce}"
+    if payload_data:
+        extra_b64 = base64.urlsafe_b64encode(json.dumps(payload_data).encode("utf-8")).decode("utf-8")
+        content += f":{extra_b64}"
+    sig = hmac.new(settings.APP_SECRET_KEY.encode("utf-8"), content.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
+    return f"{content}:{sig}"
+
+
+def verify_oauth_state(state: str, max_age_seconds: int = 600) -> tuple[bool, Optional[Dict[str, Any]]]:
+    """Verify state token integrity, HMAC signature, and temporal expiration (default: 10 mins)."""
+    import hmac
+    import hashlib
+    import base64
+    import json
+    import time
+
+    if not state or not isinstance(state, str):
+        return False, None
+
+    try:
+        parts = state.split(":")
+        if len(parts) < 3:
+            return False, None
+
+        timestamp = int(parts[0])
+        now = int(time.time())
+        if abs(now - timestamp) > max_age_seconds:
+            logger.warning("OAuth state expired (timestamp=%d, now=%d)", timestamp, now)
+            return False, None
+
+        content = ":".join(parts[:-1])
+        provided_sig = parts[-1]
+        expected_sig = hmac.new(
+            settings.APP_SECRET_KEY.encode("utf-8"),
+            content.encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()[:32]
+
+        if not hmac.compare_digest(provided_sig, expected_sig):
+            logger.warning("OAuth state signature mismatch / tampering detected")
+            return False, None
+
+        extra_data = None
+        if len(parts) >= 4:
+            extra_b64 = parts[2]
+            extra_data = json.loads(base64.urlsafe_b64decode(extra_b64.encode("utf-8")).decode("utf-8"))
+
+        return True, extra_data
+    except Exception as exc:
+        logger.warning("Failed verifying OAuth state: %s", exc)
+        return False, None
